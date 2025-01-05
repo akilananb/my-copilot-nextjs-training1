@@ -1,0 +1,66 @@
+name: Course Setup
+on:
+  issues:
+    types: [opened]
+
+permissions:
+  issues: write
+  contents: read
+
+jobs:
+  setup:
+    runs-on: ubuntu-latest
+    if: github.event.issue.title == 'Start Course'
+    steps:
+      - uses: actions/checkout@v4
+      
+      - name: Initial Course Setup
+        run: |
+          ISSUE_NUMBER=${{ github.event.issue.number }}
+          STEP_1_CONTENT=$(cat .github/steps/1-introduction.md)
+          
+          gh issue comment $ISSUE_NUMBER --body "$STEP_1_CONTENT"
+          gh issue edit $ISSUE_NUMBER --title "Step 1: Introduction"
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+
+  validate-step:
+    runs-on: ubuntu-latest
+    if: contains(github.event.issue.title, 'Step')
+    steps:
+      - uses: actions/checkout@v4
+      
+      - name: Check Progress
+        run: |
+          ISSUE_NUMBER=${{ github.event.issue.number }}
+          CURRENT_STEP=$(echo "${{ github.event.issue.title }}" | grep -o '[0-9]')
+          
+          # Validate based on step requirements
+          case $CURRENT_STEP in
+            1)
+              # Check for setup-complete.md
+              if [ -f "setup-complete.md" ]; then
+                NEXT_STEP=2
+              fi
+              ;;
+            2)
+              # Check for Next.js setup
+              if [ -d "demo-app" ]; then
+                NEXT_STEP=3
+              fi
+              ;;
+            3)
+              # Check for custom instructions
+              if [ -f ".github/copilot/custom-instructions.md" ]; then
+                NEXT_STEP=4
+              fi
+              ;;
+          esac
+          
+          if [ ! -z "$NEXT_STEP" ]; then
+            NEXT_CONTENT=$(cat .github/steps/$NEXT_STEP-*.md)
+            gh issue comment $ISSUE_NUMBER --body "$NEXT_CONTENT"
+            gh issue edit $ISSUE_NUMBER --title "Step $NEXT_STEP: $(head -n 1 .github/steps/$NEXT_STEP-*.md)"
+          fi
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
